@@ -10,7 +10,7 @@ type Storage interface {
 	CreateAccount(*Account) error
 	DeleteAccount(int) error
 	UpdateAccount(*Account) error
-	GetAccount() ([]*Account, error)
+	GetAccounts() ([]*Account, error)
 	GetAccountByID(int) (*Account, error)
 }
 
@@ -71,31 +71,47 @@ func (s *PostgresStore) UpdateAccount(account *Account) error {
 	return nil
 }
 func (s *PostgresStore) DeleteAccount(id int) error {
+	_, err := s.db.Query("delete from account where id = $1", id)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 func (s *PostgresStore) GetAccountByID(id int) (*Account, error) {
-	return nil, nil
+	rows, err := s.db.Query("select * from account where id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		return scanIntoAccount(rows)
+	}
+	return nil, fmt.Errorf("account %d not found", id)
 }
-func (s *PostgresStore) GetAccount() ([]*Account, error) {
+func (s *PostgresStore) GetAccounts() ([]*Account, error) {
 	rows, err := s.db.Query("select * from account")
 	if err != nil {
 		return nil, err
 	}
 	accounts := []*Account{}
 	for rows.Next() {
-		account := new(Account)
-		err = rows.Scan(
-			&account.ID,
-			&account.FirstName,
-			&account.LastName,
-			&account.Number,
-			&account.Balance,
-			&account.CreatedAt)
-
+		account, err := scanIntoAccount(rows)
 		if err != nil {
 			return nil, err
 		}
 		accounts = append(accounts, account)
 	}
 	return accounts, err
+}
+
+func scanIntoAccount(rows *sql.Rows) (*Account, error) {
+	account := new(Account)
+	err := rows.Scan(
+		&account.ID,
+		&account.FirstName,
+		&account.LastName,
+		&account.Number,
+		&account.Balance,
+		&account.CreatedAt)
+
+	return account, err
 }
